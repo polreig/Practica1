@@ -71,7 +71,6 @@ Usa siempre rutas referidas a la carpeta, en la que se encuentra el fichero fuen
 dfp<-read_delim("data/DFP1_11122015 124700.csv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE)
-View(dfp)
 
 dfp$FECHA<-as.POSIXlt(dfp$FECHA)
 library(hms)
@@ -111,7 +110,6 @@ Otra opción es usar la librería `readr` para especificar directamente el tipo 
 library(readr)
 filename <- "data/BreadBasket_DMS.csv"
 bakery<-read.csv(filename)
-View(bakery)
 head(bakery)
 str(bakery)
 save(bakery, file = "data/bakery.RData")
@@ -186,8 +184,8 @@ En R podemos importar ficheros JSON con la librería `jsonlite`. Las funciones m
 ```{r}
 library(jsonlite)
 filename <- 'data/FileCodificado.json'
-filecod<-read_json(filename)
-View(filecod)
+filecod<-read_json(filename,simplifyVector = TRUE)
+save(filecod,file="data/FileCodificado.RData")
 ```
 
 ## Inspección de los datos
@@ -196,6 +194,10 @@ Inspecciona los datos con `str`, `head`, `tail` y `summary`.
 
 ```{r}
 # str, head, tail, summary
+str(filecod)
+head(filecod)
+tail(filecod)
+summary(filecod)
 ```
 
 ## Extra: exportar datos en formato JSON
@@ -207,6 +209,9 @@ Es importante saber cómo exportar datos en este formato.
 
 ```{r}
 # ...
+write_json(iris,path = "data/iris.json")
+iris2<-read_json("data/iris.json")
+#me sale vacio
 ```
 
 
@@ -223,19 +228,43 @@ Es importante saber cómo exportar datos en este formato.
 
 ```{r warning=F}
 library(readxl)
+library(dplyr)
+
+# 1. IMPORTACIÓN
 fname <- "data/ERCA.xlsx"
 
-# Usaremos la función read_excel de readxl
-df <- read_excel(fname, sheet=2) # El formato de las fechas no es correcto
+# Leer sin tipos definidos para explorar
+df_preview <- read_excel(fname, sheet = 2)
+print("Estructura inicial:")
+str(df_preview)
 
-# Columnas date: FECHA*
-# Columnas numeric: COL*, TG, HIDROF, ANTI*, DIURET, IECAS, PESO, TALLA?, HB,
-#                   IST, FERRITINA, UREA, FOSFORO, CALCIO, CICALCET, QUELANTES,
-#                   PTH, BICARBO, ALOPURIN, URICO, PROTEINU*, ALBUMI*, sodio,
-#                   potasio, cloro, HB GLIC, GLUCOSA, PCR
-# Es más fácil ver cuales NO son 'numeric'.
-# Definir los tipos de datos en 'ct' y releer con 'read_excel'.
-# df <- read_excel(fname, sheet=2, col_types=ct)
+# Definir tipos de columna 
+ct <- c(
+  "text", "date", "date", "numeric", "text", "text", "text",
+  rep("numeric", 51)
+)
+
+# Leer con tipos definidos
+df <- read_excel(fname, sheet = 2, col_types = ct)
+
+# 2. LIMPIEZA
+df_clean <- df %>% 
+  filter(!is.na(IDENTIFICA)) %>% 
+  filter(complete.cases(IDENTIFICA))  # Filas con ID válido
+
+# 3. INSPECCIÓN FINAL
+print("--- PRIMERAS FILAS ---")
+head(df_clean)
+
+print("--- ESTRUCTURA ---")
+str(df_clean)
+
+print("--- RESUMEN ---")
+summary(df_clean)
+
+# 4. GUARDAR
+save(df_clean, file = "data/ERCA_clean.RData")
+print("Datos guardados en data/ERCA_clean.RData")
 ```
 
 ```{r}
@@ -250,6 +279,8 @@ df <- read_excel(fname, sheet=2) # El formato de las fechas no es correcto
 ```{r}
 # Conviene limpiar primero un poco => eliminar is.na, etc.
 # head, tail, str, summary
+
+identify(is.na(df))
 ```
 
 
@@ -272,7 +303,34 @@ filename <- "data/subjectInfo.xlsx"
   4. Como siempre al final guardamos el resultado con `save`.
 
 ```{r}
-# save()
+library(readxl)
+
+# 7.1 IMPORTACIÓN
+filename <- "data/subjectInfo.xlsx"
+
+# Obtener y mostrar hojas disponibles
+sheets <- excel_sheets(filename)
+cat("Hojas encontradas:", paste(sheets, collapse = ", "), "\n")
+
+# Leer todas las hojas automáticamente
+df_list <- lapply(sheets, function(sheet) {
+  cat("Leyendo hoja:", sheet, "...\n")
+  read_excel(filename, sheet = sheet)
+})
+names(df_list) <- sheets
+
+# Guardar
+save(df_list, file = "data/subjectInfo_completo.RData")
+cat("Datos guardados en subjectInfo_completo.RData\n")
+
+# 7.2 INSPECCIÓN
+cat("\n=== INSPECCIÓN DE DATOS ===\n")
+for (i in 1:length(df_list)) {
+  cat("\n» Hoja:", names(df_list)[i], "\n")
+  cat("  Dimensiones:", dim(df_list[[i]]), "\n")
+  cat("  Estructura:\n")
+  str(df_list[[i]], max.level = 1, vec.len = 2)
+}
 ```
 
 ## Inspección de los datos
